@@ -1,0 +1,233 @@
+---
+title: "RNA_seq_DEA"
+author: "Mieke Vannahme"
+date: "2025-05-16"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+
+# Installing packages
+
+```{r, eval=FALSE}
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install("DESeq2",force = TRUE)
+BiocManager::install("edgeR",force = TRUE)
+
+```
+# read raw data
+```{r}
+Coinfection.targets<-read.delim("./data/fileDesc.txt")
+
+```
+
+
+# load libraries
+```{r, meassage=FALSE}
+library(edgeR)
+library(DESeq2)
+
+```
+
+# change rownames for later use
+```{r}
+rownames(Coinfection.targets)<-c("Sl1","Sl2","Sl3","Ctr1","Ctr2","Ctr3")
+
+```
+
+# read data
+```{r}
+Coinfection.orig <- readDGE(Coinfection.targets, header=F)
+
+```
+
+# checking the dimensions of the data set
+```{r}
+dim(Coinfection.orig)
+
+```
+
+# checking the first rows of the data set
+```{r}
+head(Coinfection.orig)
+
+```
+
+
+```{r}
+Coinfection.rawCount <- Coinfection.orig$count
+dim(Coinfection.rawCount)
+
+```
+
+
+```{r}
+head(Coinfection.rawCount)
+
+```
+
+# building the metadata
+```{r}
+sampletype <- factor(c(rep("Sl",3), rep("Ctr", 3)))
+
+```
+
+
+```{r}
+meta <- data.frame(sampletype, row.names = colnames(Coinfection.orig$count))
+
+```
+
+# checking the column names of the counts dataframe
+```{r}
+colnames(Coinfection.orig$count)
+
+```
+
+# checking the rown nemaes of the meta dataframe
+```{r}
+rownames(meta)
+
+```
+
+# comparing the two
+```{r}
+all(colnames(Coinfection.orig$count) %in% rownames(meta))
+
+```
+
+# loading the DESeq2 package and creating a dataset
+```{r}
+library(DESeq2)
+dds <- DESeqDataSetFromMatrix(Coinfection.orig, colData = meta, design = ~ sampletype)
+
+```
+
+# view dds
+```{r}
+head(counts(dds))
+
+```
+
+# estimate size factors
+```{r}
+dds <- estimateSizeFactors(dds)
+
+```
+
+# checking noramliyation factor
+```{r}
+sizeFactors(dds)
+
+```
+
+# generate the normaliyed counts
+```{r}
+normalized_counts <- counts(dds, normalized=TRUE)
+
+```
+
+# saving the normaliyed counts into results
+```{r}
+write.csv(normalized_counts, file="./results/coinfection_normalized_counts_DESeq2.csv")
+
+```
+
+#-----------------------------------------------------------------
+# Quality control
+#-----------------------------------------------------------------
+# Principal component analzsis (PCA)
+#-----------------------------------------------------------------
+
+# transforming the dataset for PCA
+```{r}
+rld <- rlog(dds, blind=TRUE)
+
+```
+
+# plotting the data
+```{r}
+plotPCA(rld, intgroup="sampletype")
+
+```
+
+# saving on our own computer
+```{r}
+pdf("./results/PlotPCA_dds.pdf")
+plotPCA(rld, intgroup="sampletype")
+dev.off()
+
+```
+
+#-----------------------------------------------------------------
+# Hierarchical Clustering Heatmap
+#-----------------------------------------------------------------
+
+
+# Extracting the rlog matrix
+```{r}
+rld_mat <- assay(rld)
+
+```
+
+
+# computing pairwise correlation values
+```{r}
+rld_cor <- cor(rld_mat)
+
+```
+
+
+# checking the output ofcor()
+```{r}
+head(rld_cor)
+
+```
+
+
+# checking meta
+```{r}
+head(meta)
+
+```
+
+
+# installing pheatmap package
+```{r}
+install.packages("pheatmap")
+
+```
+
+
+# plotting the heatmap
+```{r}
+library(pheatmap)
+pheatmap(rld_cor, annotation = meta)
+
+```
+
+
+#changing the colours
+```{r}
+heat.colors <- RColorBrewer::brewer.pal(6, "PiYG")
+pheatmap(rld_cor, annotation = meta, color = heat.colors, border_color=NA, fontsize = 10, 
+        fontsize_row = 10, height=20)
+
+```
+
+
+# saving the heatmap
+```{r}
+pdf("./results/PlotHeatmap_dds.pdf")
+heat.colors <- RColorBrewer::brewer.pal(6, "Blues")
+pheatmap(rld_cor, annotation = meta, color = heat.colors, border_color=NA, fontsize = 10, 
+        fontsize_row = 10, height=20)
+
+```
+
