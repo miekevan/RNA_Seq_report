@@ -34,10 +34,10 @@ library(DESeq2)
 
 # Preparing the data
 
-To start the work we had to set our working directory to the directory, that contains the data. In my case the directory was called RNA_seq_DEA and is stored in the university home directory.
+To start the work we had to set our working directory to the directory, that contains the data.
 
 ```{r}
-setwd('Z:/RNA_seq_DEA')
+setwd('C:/Users/meixa/OneDrive/Dokumente/Helsinki/4_PracticalCourseinBioinformatics/RNA_Seq_report')
 ```
 
 Next we loaded the file fileDesc.txt from the data folder into a dataframe called Coinfection.targets. This file contains the paths to the files containing the actual data. I chose the data from the inoculation with the beneficial fungus.

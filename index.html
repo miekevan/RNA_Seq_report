@@ -376,9 +376,8 @@ library(DESeq2)</code></pre>
 <div id="preparing-the-data" class="section level1">
 <h1>Preparing the data</h1>
 <p>To start the work we had to set our working directory to the
-directory, that contains the data. In my case the directory was called
-RNA_seq_DEA and is stored in the university home directory.</p>
-<pre class="r"><code>setwd(&#39;Z:/RNA_seq_DEA&#39;)</code></pre>
+directory, that contains the data.</p>
+<pre class="r"><code>setwd(&#39;C:/Users/meixa/OneDrive/Dokumente/Helsinki/4_PracticalCourseinBioinformatics/RNA_Seq_report&#39;)</code></pre>
 <p>Next we loaded the file fileDesc.txt from the data folder into a
 dataframe called Coinfection.targets. This file contains the paths to
 the files containing the actual data. I chose the data from the
@@ -583,7 +582,7 @@ right working directory.</p>
 <pre class="r"><code>library(edgeR)
 options(digits=3)</code></pre>
 <pre class="r"><code>getwd()</code></pre>
-<pre><code>## [1] &quot;Z:/RNA_seq_DEA&quot;</code></pre>
+<pre><code>## [1] &quot;C:/Users/meixa/OneDrive/Dokumente/Helsinki/4_PracticalCourseinBioinformatics/RNA_Seq_report&quot;</code></pre>
 <p>Then, we loaded the file paths into infection.targets, changed the
 row names and checked the infection.targets.</p>
 <pre class="r"><code>infection.targets&lt;-read.delim(&quot;./data/fileDesc.txt&quot;)</code></pre>
