@@ -10,55 +10,69 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```
 
-
 # Installing packages
 
-```{r, eval=FALSE}
+First we had to install the packages, that are needed for the analysis: DESeq2 and edgeR. The only way I could get the knit to work on my own computer was by adding the "BiocManager::install("GenomeInfoDbData", force = TRUE)".
+
+```{r, eval = FALSE, message = FALSE}
 if (!require("BiocManager", quietly = TRUE))
     install.packages("BiocManager")
 
 BiocManager::install("DESeq2",force = TRUE)
 BiocManager::install("edgeR",force = TRUE)
-
-```
-# read raw data
-```{r}
-Coinfection.targets<-read.delim("./data/fileDesc.txt")
+BiocManager::install("GenomeInfoDbData", force = TRUE)
 
 ```
 
+We also needed to load the libraries for DESeq2 and edgeR.
 
-# load libraries
-```{r, meassage=FALSE}
+```{r, message=FALSE}
 library(edgeR)
 library(DESeq2)
 
 ```
 
-# change rownames for later use
+# Preparing the data
+
+To start the work we had to set our working directory to the directory, that contains the data. In my case the directory was called RNA_seq_DEA and is stored in the university home directory.
+
+```{r}
+setwd('Z:/RNA_seq_DEA')
+```
+
+Next we loaded the file fileDesc.txt from the data folder into a dataframe called Coinfection.targets. This file contains the paths to the files containing the actual data. I chose the data from the inoculation with the beneficial fungus.
+
+```{r}
+Coinfection.targets<-read.delim("./data/fileDesc.txt")
+
+```
+
+To make the work easier for later we changes the rownames to the identifiers of our data. This way the rows are named after the samples and not 1, 2, 3, etc.
+
 ```{r}
 rownames(Coinfection.targets)<-c("Sl1","Sl2","Sl3","Ctr1","Ctr2","Ctr3")
 
 ```
 
-# read data
+Then we loaded the actual RNA-Seq data to the dataframe Coinfection.orig and checked the dimensions of the dataset.
+
 ```{r}
 Coinfection.orig <- readDGE(Coinfection.targets, header=F)
 
 ```
 
-# checking the dimensions of the data set
 ```{r}
 dim(Coinfection.orig)
 
 ```
+Next, we checked the first 6 rows of the data, which shows us the library sizes of the different samples.
 
-# checking the first rows of the data set
 ```{r}
 head(Coinfection.orig)
 
 ```
 
+Afterwards, we stored the exact counts in the dataframe Coinfection.rawCount and checked the dimensions and the head of the dataset.
 
 ```{r}
 Coinfection.rawCount <- Coinfection.orig$count
@@ -72,92 +86,102 @@ head(Coinfection.rawCount)
 
 ```
 
-# building the metadata
+# Building the metadata
+
+To build the metadata we define the sampletype as Control (Crt) and Sl-infection (Sl).  
+
 ```{r}
 sampletype <- factor(c(rep("Sl",3), rep("Ctr", 3)))
 
 ```
 
+The dataframe meta defines, which sampletype the samples are.
 
 ```{r}
 meta <- data.frame(sampletype, row.names = colnames(Coinfection.orig$count))
 
 ```
 
-# checking the column names of the counts dataframe
+To make sure the columnnames in Coninfection.orig$count and the rownames in meta matche we check both of them individualy and via a comparison function.
+
 ```{r}
 colnames(Coinfection.orig$count)
 
 ```
 
-# checking the rown nemaes of the meta dataframe
 ```{r}
 rownames(meta)
 
 ```
 
-# comparing the two
 ```{r}
 all(colnames(Coinfection.orig$count) %in% rownames(meta))
 
 ```
 
-# loading the DESeq2 package and creating a dataset
-```{r}
+# DESeq2 analysis
+
+## Creating the DESeqDataset object
+
+We create the DESeq2 dataset named dds, which has the counts and the metadata.
+
+```{r,message=FALSE}
 library(DESeq2)
+
+```
+
+```{r}
+
 dds <- DESeqDataSetFromMatrix(Coinfection.orig, colData = meta, design = ~ sampletype)
 
 ```
 
-# view dds
 ```{r}
 head(counts(dds))
 
 ```
 
-# estimate size factors
+Next, we use the function estimateSizeFactors() to generate size factors for median of ratios normalization.and checked the size factors in the following step.
+
 ```{r}
 dds <- estimateSizeFactors(dds)
 
 ```
 
-# checking noramliyation factor
 ```{r}
 sizeFactors(dds)
 
 ```
 
-# generate the normaliyed counts
+Afterwards, we generated the normalized counts matrix and saved it in our local path.
+
 ```{r}
 normalized_counts <- counts(dds, normalized=TRUE)
 
 ```
 
-# saving the normaliyed counts into results
 ```{r}
 write.csv(normalized_counts, file="./results/coinfection_normalized_counts_DESeq2.csv")
 
 ```
 
-#-----------------------------------------------------------------
-# Quality control
-#-----------------------------------------------------------------
-# Principal component analzsis (PCA)
-#-----------------------------------------------------------------
+# Sample-level quality control
 
-# transforming the dataset for PCA
+## Principal component analysis (PCA)
+
+First, we had to transform our normalized counts in dds with the function rlog. The result is stored in rdl.
 ```{r}
 rld <- rlog(dds, blind=TRUE)
 
 ```
 
-# plotting the data
+Next, we plotted our data and saved the plot as a PDF on our computer.
+
 ```{r}
 plotPCA(rld, intgroup="sampletype")
 
 ```
 
-# saving on our own computer
 ```{r}
 pdf("./results/PlotPCA_dds.pdf")
 plotPCA(rld, intgroup="sampletype")
@@ -165,69 +189,461 @@ dev.off()
 
 ```
 
-#-----------------------------------------------------------------
-# Hierarchical Clustering Heatmap
-#-----------------------------------------------------------------
+Answers to exercise questions:
+1) Two of the control group samples are quite similar, while the third is more different. The Sl group samples are relatively similar to each other. The two groups are very different from each other.
+2) It is expected, that the two groups are very different from each other. It would be expected, that the samples within the control group would be more similar to each other.
+3) The percent variance tells us how much of the varaince between the samples can be explained by the two components, respectively.
 
 
-# Extracting the rlog matrix
+## Hierarchical Clustering Heatmap
+
+First, we extracted the rlog matrix from rdl and stored it in rdl_mat. Then we computed the pairwise correlation values using the function cor() and stored them in rdl_cor.
+
 ```{r}
 rld_mat <- assay(rld)
 
 ```
 
-
-# computing pairwise correlation values
 ```{r}
 rld_cor <- cor(rld_mat)
 
 ```
 
+Afterwards, we checked the output of cor.
 
-# checking the output ofcor()
 ```{r}
 head(rld_cor)
 
 ```
+Then we checked the metadata for the samples.
 
-
-# checking meta
 ```{r}
 head(meta)
 
 ```
 
+To make the heatmap, we had to install the package heatmap.
 
-# installing pheatmap package
-```{r}
+```{r,eval=FALSE, message=FALSE}
 install.packages("pheatmap")
 
 ```
+Then we loaded the heatmap library and plotted the heatmap.
 
-
-# plotting the heatmap
-```{r}
+```{r, message=FALSE}
 library(pheatmap)
 pheatmap(rld_cor, annotation = meta)
 
 ```
 
+I was not happy with the colours and changed both the heatmap and the sampletype colours, based on instructions found online.
 
-#changing the colours
 ```{r}
-heat.colors <- RColorBrewer::brewer.pal(6, "PiYG")
-pheatmap(rld_cor, annotation = meta, color = heat.colors, border_color=NA, fontsize = 10, 
-        fontsize_row = 10, height=20)
+heat.colors <- RColorBrewer::brewer.pal(6, "PuRd")
+ann_colors = list(
+  sampletype = c( Ctr = "#23611b", Sl = "#d12e8a") 
+)
+pheatmap(rld_cor, annotation = meta, color = heat.colors, border_color=TRUE, fontsize = 10, 
+        fontsize_row = 10, height=20, annotation_colors = ann_colors)
+
+```
+
+I then saved the heatmap as a pdf. I added cellwidth and cellheight, to make the fields square in the PDF. I also saved the heatmap as a PNG because my PDF kept getting corrupted and would not open.
+
+```{r}
+pdf("./results/PlotHeatmap_dds.pdf")
+heat.colors <- RColorBrewer::brewer.pal(6, "PuRd")
+ann_colors = list(
+  sampletype = c( Ctr = "#23611b", Sl = "#d12e8a") 
+)
+pheatmap(rld_cor, annotation = meta, color = heat.colors, border_color=TRUE, fontsize = 10, 
+        fontsize_row = 10, height=20, cellwidth = 39, cellheight = 39,  annotation_colors = ann_colors)
+
+```
+
+```{r}
+png("./results/PlotHeatmap_dds.png")
+heat.colors <- RColorBrewer::brewer.pal(6, "PuRd")
+ann_colors = list(
+  sampletype = c( Ctr = "#23611b", Sl = "#d12e8a") 
+)
+pheatmap(rld_cor, annotation = meta, color = heat.colors, border_color=TRUE, fontsize = 10, 
+        fontsize_row = 10, height=20, cellwidth = 39, cellheight = 39,  annotation_colors = ann_colors)
+
+```
+
+# Differential expression analysis with EdgeR
+
+## Preparing the data
+
+First, we had to load the edgeR library and checked, we are in the right working directory.
+
+```{r, eval=FALSE, message=FALSE}
+library(edgeR)
+options(digits=3)
+
+```
+
+```{r}
+getwd()
+```
+
+Then, we loaded the file paths into infection.targets, changed the row names and checked the infection.targets.
+
+```{r}
+infection.targets<-read.delim("./data/fileDesc.txt")
+
+```
+
+```{r}
+rownames(infection.targets)<-c("Sl1","Sl2","Sl3","Ctr1","Ctr2","Ctr3")
+infection.targets
+
+```
+
+We then read and merged the text files into the dataframe infection and checked the dimensions and the head.
+
+```{r}
+infection <- readDGE(infection.targets, header=F)
+dim(infection)
+
+```
+
+```{r}
+head(infection)
+```
+
+## Raw count distribution
+
+We mapped the read counts before filtering. For this we loaded the count data into the dataframe infection.rawCount and looked at the head.
+
+```{r}
+infection.rawCount <- infection$count
+head(infection.rawCount)
+
+```
+We then installed the package ggplot2 for the visualization and loaded the library.
+
+```{r, eval=FALSE, message=FALSE}
+install.packages("ggplot2")
+
+```
+
+```{r, message=FALSE}
+library(ggplot2)
+
+```
+
+We then plotted the data and saved it as a PDF.
+
+```{r}
+ggplot(infection.rawCount) +
+  geom_histogram(aes(x = Sl1), stat = "bin", bins = 200) +
+  xlab("Raw expression counts") +
+  ylab("Number of genes") 
+  # xlim (0, 2000) + ylim(0, 5000)
+
+```
+
+```{r}
+pdf("./results/count distribution.pdf", height=8, width=8)
+ggplot(infection.rawCount) +
+  geom_histogram(aes(x = Sl1), stat = "bin", bins = 200) +
+  xlab("Raw expression counts") +
+  ylab("Number of genes")
+dev.off()
 
 ```
 
 
-# saving the heatmap
+## Count normalization with TMM in EdgeR
+
+We first exported the raw count table.
+
 ```{r}
-pdf("./results/PlotHeatmap_dds.pdf")
-heat.colors <- RColorBrewer::brewer.pal(6, "Blues")
-pheatmap(rld_cor, annotation = meta, color = heat.colors, border_color=NA, fontsize = 10, 
-        fontsize_row = 10, height=20)
+write.csv(infection.rawCount, file="./results/infection.rawCounts.csv")
+
+```
+
+We then TMM normalized the CPM and stored them in the dataframe infection.normCPM. We checked the dimensions and the head of the dataframe.
+
+```{r}
+infection.normCPM <- cpm(calcNormFactors(infection))
+dim(infection.normCPM)
+
+```
+
+
+```{r}
+head(infection.normCPM)
+
+```
+
+We then exported the normalized counts as a csv file.
+
+```{r}
+write.csv(infection.normCPM, file="./results/infection.normCPM.csv")
+
+```
+
+
+## Filtering CPM and getting smaller size libraries
+
+We filtered to keep the genes, that are expressed at at least one CPM in at least three libraries. We then checked how many genes were filtered out and kept.
+
+```{r}
+infection.filtered <- rowSums(cpm(infection)>1) >=3
+
+```
+
+```{r}
+table(infection.filtered)
+
+```
+
+We looked at the library sizes of the data before filtering.
+
+```{r}
+infection$samples$lib.size
+
+```
+
+We then stored the filtered library sizes in the dataframe Inefection.
+
+```{r}
+Infection <- infection[infection.filtered,]
+
+```
+
+```{r}
+colSums(Infection$counts)
+
+```
+
+```{r}
+dim(Infection)
+
+```
+
+We then updated the filtered library sizes.
+
+```{r}
+Infection$samples$lib.size <- colSums(Infection$counts)
+Infection$samples
+
+```
+
+## Count normalization after filtering
+
+We performed the TMM count normalization again after filtering and checked the libraries after normalization.
+
+```{r}
+Infection = calcNormFactors(Infection)
+
+```
+
+```{r}
+Infection$samples
+
+```
+
+We then extracted the normalized CPM after filtering and saved them in a csv file.
+
+```{r}
+Infection.filtered.normCPM <-cpm(calcNormFactors(Infection))
+
+```
+
+```{r}
+write.csv(Infection.filtered.normCPM, file="./results/Infection.filtered.normCPM.csv")
+
+```
+
+
+## Experimental design
+
+We then set the treatment factor and described the experimental design.
+
+```{r}
+group<-factor(c('Sl','Sl','Sl',"Ctr","Ctr","Ctr"))
+
+```
+
+```{r}
+Infection.design <- model.matrix(~group)   
+rownames(Infection.design)<-colnames(Infection$counts)
+Infection.design
+
+```
+
+
+## Sample-level quality control by multidimensional scaling
+
+We did a MDS plot , that shows the relative similarities of the samples and saved it as a png.
+
+```{r}
+plotMDS(Infection, main="MDS plot of RNA-Seq", labels=colnames(Infection$counts))
+
+```
+
+```{r}
+png("./results/plotMDS.Infection.png", res=300, height=1800, width=1800)
+plotMDS(Infection, main="MDS plot of Infection RNA-Seq", labels=colnames(Infection$counts))
+dev.off()
+
+```
+
+
+## Estimating the common dispersion, trended dispersion, tagwise dispersion
+
+We estimated the common dispersion,
+
+```{r}
+Infection <- estimateGLMCommonDisp(Infection, Infection.design)
+
+```
+
+the trended dispersion,
+
+```{r}
+Infection <- estimateGLMTrendedDisp(Infection, Infection.design)
+
+```
+
+
+and the tagwwise dispersion.
+
+```{r}
+Infection <- estimateGLMTagwiseDisp(Infection, Infection.design)
+
+```
+
+We then plotted the  BCV against the avarage log of CPM.
+
+```{r}
+plotMeanVar(Infection, show.tagwise.vars=T,NBline=T)
+
+plotBCV(Infection)
+
+```
+
+
+
+## Fit DGEList and design matrix to genewise GLM
+
+We fitted the DGEList and the design matrix to the genewise GLM and checked the column names.
+
+```{r}
+Infection.fit <- glmFit(Infection, Infection.design)
+colnames(Infection.fit)
+
+```
+
+We then did a likelihhod test to compare the Crt and Sl groups ans stored the top tags in t1.
+
+```{r}
+lrt.Sl_vs_Ctr <- glmLRT(Infection.fit, coef=2)  # to compare Sl vs Ctr (Sl_vs_Ctr)
+```
+
+```{r}
+t1<-topTags(lrt.Sl_vs_Ctr, n=nrow(Infection))
+head(t1$table)
+
+```
+
+## Extracting number of differentially expressed genes¨
+
+We first checked ho many genes are significantly up- and downregulated.
+
+```{r}
+summary(decideTests(lrt.Sl_vs_Ctr, adjust.method="BH", p.value=0.05))
+
+```
+
+We then checked how many genes were upregulated (with low strictness) and stored the results.
+
+```{r}
+nrow(subset(topTags(lrt.Sl_vs_Ctr, n=586)$table,  logFC > 0))
+
+```
+
+```{r}
+lrt.Sl_vs_Ctr_UP <- subset(topTags(lrt.Sl_vs_Ctr, n=586)$table, logFC > 0)
+
+```
+
+we then did the same step for the downregulated genes.
+
+```{r}
+nrow(subset(topTags(lrt.Sl_vs_Ctr, n=586)$table,  logFC < 0))
+
+```
+
+```{r}
+lrt.Sl_vs_Ctr_DW <- subset(topTags(lrt.Sl_vs_Ctr, n=586)$table, logFC < 0)
+```
+
+
+## Differentially expressed transcripts tags
+
+We stored the tags of the differentially expressed transcripts.
+
+```{r}
+DEtags.lrt.Sl_vs_Ctr <- rownames(Infection)[as.logical(decideTests(lrt.Sl_vs_Ctr, adjust.method="BH", p.value=0.05))]
+
+```
+
+We then exported the up- and downregulated genes in two separate csv files.
+
+```{r}
+write.csv(lrt.Sl_vs_Ctr_UP, file="./results/lrt.Sl_vs_Ctr_UP.csv")
+write.csv(lrt.Sl_vs_Ctr_DW, file="./results/lrt.Sl_vs_Ctr_DW.csv")
+
+```
+
+Then we assigned colour to the transcripts for the plotting. First all transcripts were defined as grey.
+
+```{r}
+Infection.colSlvsCtr = rep('grey55', nrow(Infection))
+
+```
+
+We then assigned the colour red for upregulated genes and blue for downregulated genes.
+
+```{r}
+Infection.colSlvsCtr[lrt.Sl_vs_Ctr$table$PValue < 0.05 & lrt.Sl_vs_Ctr$table$logFC >0 ] <- "red"
+Infection.colSlvsCtr[lrt.Sl_vs_Ctr$table$PValue < 0.05 & lrt.Sl_vs_Ctr$table$logFC <0 ] <- "blue"
+
+```
+
+We then created a smear plotwith adjustments on the y-axis label.
+
+```{r}
+par(omi=c(0.1,0.1,0.1,0.1), las=1, cex=0.5, mgp=c(3,1,0), cex.main=1.8, cex.lab=1.4, cex.axis=1.4)
+plotSmear(lrt.Sl_vs_Ctr, de.tags=DEtags.lrt.Sl_vs_Ctr, xlab="log-counts per million (logCPM)", ylab="log2-fold change (log2FC)", main="Sl infection compared to Control", pch=19, cex=0.4, smearWidth=0.5, panel.first=grid(), smooth.scatter=FALSE, ylim=c(-7,7), yaxs="i")
+
+abline(h=c(-1,1),col="dodgerblue")
+
+```
+
+We then changed the colour of the DE tags.
+
+```{r}
+par(omi=c(0.1,0.1,0.1,0.1), las=1, cex=0.5, mgp=c(3,1,0), cex.main=1.8, cex.lab=1.4, cex.axis=1.4)
+plotSmear(lrt.Sl_vs_Ctr, xlab="log-counts per million (logCPM)", ylab="log2-fold change (log2FC)", main="Sl infection compared to Control", smearWidth=0.5, pch=21, cex=0.4, deCol="red", col=Infection.colSlvsCtr, ylim=c(-7,7), yaxs="i")
+
+abline(h=c(-1,1),col="dodgerblue")
+
+```
+
+Finally, we exported the plot of differentialy expressed genes as a png.
+
+```{r}
+png("./results/plotSmear.InfectionRNAseq.png", res=300, height=1800, width=1800)
+par(omi=c(0.1,0.1,0.1,0.1), las=1, cex=0.5, mgp=c(3,1,0), cex.main=1.8, cex.lab=1.4, cex.axis=1.4)
+plotSmear(lrt.Sl_vs_Ctr, xlab="log-counts per million (logCPM)", ylab="log2-fold change (log2FC)", main="Sl infection compared to Control", smearWidth=0.5, pch=21, cex=0.4, deCol="red", col=Infection.colSlvsCtr, ylim=c(-7,7), yaxs="i")
+abline(h=c(-1,1),col="dodgerblue")
+dev.off()
 
 ```
 
